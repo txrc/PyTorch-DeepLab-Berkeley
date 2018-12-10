@@ -188,10 +188,6 @@ def main():
             new_params['.'.join(i_parts[1:])] = saved_state_dict[i]
     model.load_state_dict(new_params)
 
-    # model.float()
-    # model.eval() # use_global_stats = True
-
-    model.train()
     model.cuda() # Moves all parameters into GPU
     
     cudnn.benchmark = True
@@ -209,11 +205,11 @@ def main():
     optimizer = optim.SGD([{'params': get_1x_lr_params_NOscale(model), 'lr': args.learning_rate }, 
                 {'params': get_10x_lr_params(model), 'lr': 10*args.learning_rate}], 
                 lr=args.learning_rate, momentum=args.momentum,weight_decay=args.weight_decay)
-    optimizer.zero_grad()
 
     interp = nn.Upsample(size=input_size, mode='bilinear')
 
-
+    model.train()
+    train_loss = 0
     for i_iter, batch in enumerate(trainloader):
         images, labels, _, _ = batch
         images = Variable(images).cuda()
@@ -225,18 +221,9 @@ def main():
         loss.backward()
         optimizer.step()
 
-        
-        print('iter = ', i_iter, 'of', args.num_steps,'completed, loss = ', loss.data.cpu().numpy())
-
-        if i_iter >= args.num_steps-1:
-            print('save model ...')
-            torch.save(model.state_dict(),osp.join(args.snapshot_dir, 'Berkeley_scenes_'+str(args.num_steps)+'.pth'))
-            break
-
-        if i_iter % args.save_pred_every == 0 and i_iter!=0:
-            print('taking snapshot ...')
-            torch.save(model.state_dict(),osp.join(args.snapshot_dir, 'Berkeley_scenes_'+str(i_iter)+'.pth'))     
-
+        train_loss = loss.item()*images.size(0) # Calculates the total loss over each batch size.
+           
+        print("Iteration: {:.6f} \tTraining Loss: {:.6f}".format(i_iter, train_loss))
 
     end = timeit.default_timer()
     print(end-start,'seconds')
