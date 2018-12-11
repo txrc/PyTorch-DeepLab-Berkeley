@@ -28,7 +28,7 @@ DATA_DIRECTORY = './BDD_Deepdrive/bdd100k/'
 DATA_LIST_PATH = './dataset/list/BDD_train.txt'
 IGNORE_LABEL = 255
 INPUT_SIZE = '321,321'
-LEARNING_RATE = 1e-4
+LEARNING_RATE = 2.5e-4
 MOMENTUM = 0.9
 NUM_CLASSES = 3
 NUM_STEPS = 20000
@@ -194,6 +194,7 @@ def main():
 
     # Creating folder for saved parameters of model
     if not os.path.exists(args.snapshot_dir):
+        print("Creating Checkpoint Folder")
         os.makedirs(args.snapshot_dir)
 
 
@@ -204,8 +205,10 @@ def main():
 
     optimizer = optim.SGD([{'params': get_1x_lr_params_NOscale(model), 'lr': args.learning_rate }, 
                 {'params': get_10x_lr_params(model), 'lr': 10*args.learning_rate}], 
-                lr=args.learning_rate, momentum=args.momentum,weight_decay=args.weight_decay)
+                lr=args.learning_rate, momentum=args.momentum, weight_decay=args.weight_decay)
 
+    optimizer.zero_grad()
+    
     interp = nn.Upsample(size=input_size, mode='bilinear')
 
     model.train()
@@ -213,17 +216,23 @@ def main():
     for i_iter, batch in enumerate(trainloader):
         images, labels, _, _ = batch
         images = Variable(images).cuda()
-
         optimizer.zero_grad()
         adjust_learning_rate(optimizer, i_iter)
         pred = interp(model(images))
         loss = loss_calc(pred, labels)
         loss.backward()
         optimizer.step()
+        
+        print('iter = ', i_iter, 'of', args.num_steps,'completed, loss = ', loss.item()*images.size(0))
 
-        train_loss = loss.item()*images.size(0) # Calculates the total loss over each batch size.
-           
-        print("Iteration: {:.6f} \tTraining Loss: {:.6f}".format(i_iter, train_loss))
+        if i_iter >= args.num_steps-1:
+            print('save model ...')
+            torch.save(model.state_dict(),osp.join(args.snapshot_dir, 'BDD_'+str(args.num_steps)+'.pth'))
+            break
+
+        if i_iter % args.save_pred_every == 0 and i_iter!=0:
+            print('taking snapshot ...')
+            torch.save(model.state_dict(),osp.join(args.snapshot_dir, 'BDD_'+str(i_iter)+'.pth'))  
 
     end = timeit.default_timer()
     print(end-start,'seconds')

@@ -14,7 +14,7 @@ import sys
 
 
 class BerkeleyDataSet(data.Dataset):
-    def __init__(self, root, list_path, max_iters=None, crop_size=(321,321), mean=(128, 128, 128), scale=True, mirror=True, ignore_label=255):
+    def __init__(self, root, list_path, max_iters=None, crop_size=(321,321), mean=(128, 128, 128), scale=True, mirror=True, ignore_label=255, train=True):
         self.root = root
         self.list_path = list_path
         self.crop_h, self.crop_w = crop_size
@@ -22,18 +22,29 @@ class BerkeleyDataSet(data.Dataset):
         self.ignore_label = ignore_label
         self.mean = mean
         self.is_mirror = mirror
+        self.train = train
         self.img_ids = [i_id.strip() for i_id in open(list_path)]
         if not max_iters==None:
             self.img_ids = self.img_ids * int(np.ceil(float(max_iters) / len(self.img_ids)))
         self.files = []
 
-        for name in self.img_ids:
-            img_file = osp.join(self.root, "images/100k/train/{}.jpg".format(name))
-            label_file = osp.join(self.root, "drivable_maps/color_labels/train/{}_drivable_color.png".format(name))
-            self.files.append({
-                "img": img_file, 
-                "label": label_file, 
-                "name": name})
+        if self.train == True:
+            for name in self.img_ids:
+                img_file = osp.join(self.root, "images/100k/train/{}.jpg".format(name))
+                label_file = osp.join(self.root, "drivable_maps/color_labels/train/{}_drivable_color.png".format(name))
+                self.files.append({
+                    "img": img_file, 
+                    "label": label_file, 
+                    "name": name})
+        else:
+            print("It works!")
+            for name in self.img_ids:
+                img_file = osp.join(self.root, "images/100k/val/{}.jpg".format(name))
+                label_file = osp.join(self.root, "drivable_maps/color_labels/val/{}_drivable_color.png".format(name))
+                self.files.append({
+                    "img": img_file, 
+                    "label": label_file, 
+                    "name": name})
 
     def __len__(self):
         return len(self.files)
@@ -80,13 +91,13 @@ class BerkeleyDataSet(data.Dataset):
             image = image[:, :, ::flip]
             label = label[:, ::flip]
 
-        return image.copy(), label.copy(), np.array(size), name
+        return image.copy(), label.copy(), name, np.array(size)
 
 
 
 
 class BerkeleyDataTestSet(data.Dataset):
-    def __init__(self, root, list_path, crop_size=(312, 312), mean=(128, 128, 128)):
+    def __init__(self, root, list_path, crop_size=(505, 505), mean=(128, 128, 128)):
         self.root = root
         self.list_path = list_path
         self.crop_h, self.crop_w = crop_size
@@ -97,8 +108,11 @@ class BerkeleyDataTestSet(data.Dataset):
         # for split in ["train", "trainval", "val"]:
         for name in self.img_ids:
             img_file = osp.join(self.root, "images/100k/val/{}.jpg".format(name))
+            label_file = osp.join(self.root, "drivable_maps/color_labels/val/{}_drivable_color.png".format(name))
             self.files.append({
-                "img": img_file
+                "img": img_file,
+                "label": label_file,
+                "name": name
             })
 
     def __len__(self):

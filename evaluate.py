@@ -11,7 +11,7 @@ import torchvision.models as models
 import torch.nn.functional as F
 from torch.utils import data
 from deeplab.model import Res_Deeplab
-from deeplab.datasets import BerkeleyDataTestSet
+from deeplab.datasets import BerkeleyDataSet
 from collections import OrderedDict
 import os
 
@@ -75,7 +75,7 @@ def show_all(ground_truth, pred):
     from matplotlib import colors
     from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-    fig, axes = plt.subplots(1, 2)
+    fig, axes = plt.subplots(1, 2, figsize=(15, 15))
     ax1, ax2 = axes
 
     classes = np.array(('background',  # always index 0
@@ -95,8 +95,9 @@ def show_all(ground_truth, pred):
     #                 (0.5,0.5,0.5),(0.25,0,0),(0.75,0,0),(0.25,0.5,0),(0.75,0.5,0),(0.25,0,0.5), 
     #                 (0.75,0,0.5),(0.25,0.5,0.5),(0.75,0.5,0.5),(0,0.25,0),(0.5,0.25,0),(0,0.75,0), 
     #                 (0.5,0.75,0),(0,0.25,0.5)]
+
     cmap = colors.ListedColormap(colormap)
-    bounds=[0,1,2]
+    bounds = [0,1,2]
     norm = colors.BoundaryNorm(bounds, cmap.N)
 
     ax1.set_title('ground_truth')
@@ -104,8 +105,7 @@ def show_all(ground_truth, pred):
 
     ax2.set_title('pred')
     ax2.imshow(pred, cmap=cmap, norm=norm)
-
-    plt.show()
+    plt.show(fig)
 
 def main():
     """Create the model and start the evaluation process."""
@@ -121,34 +121,37 @@ def main():
     model.eval()
     model.cuda(gpu0)
 
-    testloader = data.DataLoader(BerkeleyDataTestSet(args.data_dir, args.data_list, crop_size=(321,321), mean=IMG_MEAN),
-        batch_size=1, shuffle=False, pin_memory=True)
+    testloader = data.DataLoader(BerkeleyDataSet(args.data_dir, args.data_list, crop_size=(505, 505), mean=IMG_MEAN, scale=False, mirror=False, train=False), 
+                                    batch_size=1, shuffle=False, pin_memory=True)
 
     # testloader = data.DataLoader(VOCDataSet(args.data_dir, args.data_list, crop_size=(505, 505), mean=IMG_MEAN, scale=False, mirror=False), 
     #                                 batch_size=1, shuffle=False, pin_memory=True)
 
-    interp = nn.Upsample(size=(505, 505), mode='bilinear')
+    interp = nn.Upsample(size=(505, 505), mode='bilinear', align_corners=True)
     data_list = []
+    with torch.no_grad():
+        for index, batch in enumerate(testloader):
+            if index % 100 == 0:
+                print('%d processd'%(index))
+            image, label, name, size = batch
 
-    for index, batch in enumerate(testloader):
-        if index % 100 == 0:
-            print('%d processd'%(index))
-        image, name, size = batch # validation of berkeley dataset
-        # image, label, size, name = batch
-        size = size[0].numpy()
-        output = model(Variable(image, volatile=True).cuda(gpu0))
-        output = interp(output).cpu().data[0].numpy()
+            h, w, c = size[0].numpy()
+            print(name)
 
-        output = output[:,:size[0],:size[1]]
-        ground_truth = np.asarray(label[0].numpy()[:size[0],:size[1]], dtype=np.int)
-        
-        output = output.transpose(1,2,0)
-        output = np.asarray(np.argmax(output, axis=2), dtype=np.int)
+            output = model(Variable(image, volatile=True).cuda(gpu0))
+            output = interp(output).cpu().data[0].numpy()
+            print(output.shape)
+            output = output.transpose(1,2,0)
+            output = np.asarray(np.argmax(output, axis=2), dtype=np.int)
+            print(output)
+            print(label[0].shape)
+            ground_truth = np.asarray(label[0].numpy()[:h,:w], dtype=np.int)
+            
 
-        # show_all(ground_truth, output)
-        data_list.append([ground_truth.flatten(), output.flatten()])
+            show_all(ground_truth, output)
+            data_list.append([ground_truth.flatten(), output.flatten()])
 
-    get_iou(data_list, args.num_classes)
+        get_iou(data_list, args.num_classes)
 
 
 if __name__ == '__main__':
