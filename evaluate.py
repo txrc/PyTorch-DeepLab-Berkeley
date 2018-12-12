@@ -24,7 +24,7 @@ DATA_LIST_PATH = './dataset/list/BDD_val.txt'
 IGNORE_LABEL = 255
 NUM_CLASSES = 3
 NUM_STEPS = 10000 # Number of images in the validation set.
-RESTORE_FROM = './Berkeley_scenes_20000.pth'
+RESTORE_FROM = './BDD_3000.pth'
 
 def get_arguments():
     """Parse all the arguments provided from the CLI.

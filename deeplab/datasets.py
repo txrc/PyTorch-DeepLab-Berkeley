@@ -12,7 +12,7 @@ import sys
 
 
 
-
+# random mirror turn off when doing validation and testing
 class BerkeleyDataSet(data.Dataset):
     def __init__(self, root, list_path, max_iters=None, crop_size=(321,321), mean=(128, 128, 128), scale=True, mirror=True, ignore_label=255, train=True):
         self.root = root
@@ -48,23 +48,34 @@ class BerkeleyDataSet(data.Dataset):
 
     def __len__(self):
         return len(self.files)
-
+    '''
     def generate_scale_label(self, image, label):
         f_scale = 0.5 + random.randint(0, 11) / 10.0
         image = cv2.resize(image, None, fx=f_scale, fy=f_scale, interpolation = cv2.INTER_LINEAR)
         label = cv2.resize(label, None, fx=f_scale, fy=f_scale, interpolation = cv2.INTER_NEAREST)
         return image, label
-
+    '''
+    
     def __getitem__(self, index):
         datafiles = self.files[index]
         image = cv2.imread(datafiles["img"], cv2.IMREAD_COLOR)
-        label = cv2.imread(datafiles["label"], cv2.IMREAD_GRAYSCALE)
+        label = cv2.imread(datafiles["label"], cv2.IMREAD_COLOR)
         size = image.shape
+
+        # Height = axis 0 (y) , Width = axis 1 (x)
+        image = cv2.resize(image, None, fx=321/size[1], fy=321/size[0], interpolation = cv2.INTER_LINEAR)
+        label = cv2.resize(label, None, fx=321/size[1], fy=321/size[0], interpolation = cv2.INTER_NEAREST)
         name = datafiles["name"]
-        if self.scale:
-            image, label = self.generate_scale_label(image, label)
+        #if self.scale:
+            #image, label = self.generate_scale_label(image, label)
         image = np.asarray(image, np.float32)
         image -= self.mean
+
+        label = cv2.cvtColor(label, cv2.COLOR_BGR2GRAY)
+        label[label == 29] = 1
+        label[label == 76] = 2
+
+        '''
         img_h, img_w = label.shape
         pad_h = max(self.crop_h - img_h, 0)
         pad_w = max(self.crop_w - img_w, 0)
@@ -83,8 +94,9 @@ class BerkeleyDataSet(data.Dataset):
         w_off = random.randint(0, img_w - self.crop_w)
         # roi = cv2.Rect(w_off, h_off, self.crop_w, self.crop_h);
         image = np.asarray(img_pad[h_off : h_off+self.crop_h, w_off : w_off+self.crop_w], np.float32)
-        label = np.asarray(label_pad[h_off : h_off+self.crop_h, w_off : w_off+self.crop_w], np.float32)
+        label = np.asarray(label_pad[h_off : h_off+self.crop_h, w_off : w_off+self.crop_w], np.float32)'''
         #image = image[:, :, ::-1]  # change to BGR
+
         image = image.transpose((2, 0, 1))
         if self.is_mirror:
             flip = np.random.choice(2) * 2 - 1

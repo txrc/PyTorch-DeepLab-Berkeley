@@ -184,6 +184,7 @@ def main():
         #Scale.layer5.conv2d_list.3.weight
         i_parts = i.split('.')
         # print i_parts
+        # layer 5 is end of network
         if not args.num_classes == 3 or not i_parts[1]=='layer5':
             new_params['.'.join(i_parts[1:])] = saved_state_dict[i]
     model.load_state_dict(new_params)
