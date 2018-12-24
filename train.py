@@ -221,6 +221,7 @@ def main():
         adjust_learning_rate(optimizer, i_iter)
         pred = interp(model(images))
         loss = loss_calc(pred, labels)
+        
         loss.backward()
         optimizer.step()
         

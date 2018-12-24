@@ -23,8 +23,7 @@ DATA_DIRECTORY = './BDD_Deepdrive/bdd100k/'
 DATA_LIST_PATH = './dataset/list/BDD_val.txt'
 IGNORE_LABEL = 255
 NUM_CLASSES = 3
-NUM_STEPS = 10000 # Number of images in the validation set.
-RESTORE_FROM = './BDD_3000.pth'
+RESTORE_FROM = './BDD_20000.pth'
 
 def get_arguments():
     """Parse all the arguments provided from the CLI.
@@ -49,13 +48,21 @@ def get_arguments():
 
 
 def get_iou(data_list, class_num, save_path=None):
-    from multiprocessing import Pool 
+    import multiprocessing as mp
     from deeplab.metric import ConfusionMatrix
 
     ConfM = ConfusionMatrix(class_num)
     f = ConfM.generateM
-    pool = Pool() 
-    m_list = pool.map(f, data_list)
+    pool = mp.Pool()
+    # Mapping the function f to the dataset
+    '''
+    https://hg.python.org/cpython/file/2.7/Lib/multiprocessing/pool.py
+    States that chunksize, extra = samples // 4 * num_workers
+    if extra: 
+        chunksize += 1
+
+    '''
+    m_list = pool.map(f, data_list, chunksize=625) # Validation set 10,000 length
     pool.close() 
     pool.join() 
     
@@ -121,13 +128,11 @@ def main():
     model.eval()
     model.cuda(gpu0)
 
-    testloader = data.DataLoader(BerkeleyDataSet(args.data_dir, args.data_list, crop_size=(505, 505), mean=IMG_MEAN, scale=False, mirror=False, train=False), 
+    testloader = data.DataLoader(BerkeleyDataSet(args.data_dir, args.data_list, mean=IMG_MEAN, scale=False, mirror=False, train=False), 
                                     batch_size=1, shuffle=False, pin_memory=True)
 
-    # testloader = data.DataLoader(VOCDataSet(args.data_dir, args.data_list, crop_size=(505, 505), mean=IMG_MEAN, scale=False, mirror=False), 
-    #                                 batch_size=1, shuffle=False, pin_memory=True)
 
-    interp = nn.Upsample(size=(505, 505), mode='bilinear', align_corners=True)
+    interp = nn.Upsample(size=(321, 321), mode='bilinear', align_corners=True)
     data_list = []
     with torch.no_grad():
         for index, batch in enumerate(testloader):
@@ -136,19 +141,19 @@ def main():
             image, label, name, size = batch
 
             h, w, c = size[0].numpy()
-            print(name)
+            # print(name)
 
-            output = model(Variable(image, volatile=True).cuda(gpu0))
+            output = model(Variable(image).cuda(gpu0))
             output = interp(output).cpu().data[0].numpy()
-            print(output.shape)
+            # print(output.shape)
             output = output.transpose(1,2,0)
             output = np.asarray(np.argmax(output, axis=2), dtype=np.int)
-            print(output)
-            print(label[0].shape)
+            # print(output)
+            # print(label[0].shape)
             ground_truth = np.asarray(label[0].numpy()[:h,:w], dtype=np.int)
             
 
-            show_all(ground_truth, output)
+            # show_all(ground_truth, output)
             data_list.append([ground_truth.flatten(), output.flatten()])
 
         get_iou(data_list, args.num_classes)

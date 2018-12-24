@@ -24,6 +24,7 @@ class BerkeleyDataSet(data.Dataset):
         self.is_mirror = mirror
         self.train = train
         self.img_ids = [i_id.strip() for i_id in open(list_path)]
+        # Limit the batch_size 
         if not max_iters==None:
             self.img_ids = self.img_ids * int(np.ceil(float(max_iters) / len(self.img_ids)))
         self.files = []
@@ -37,7 +38,6 @@ class BerkeleyDataSet(data.Dataset):
                     "label": label_file, 
                     "name": name})
         else:
-            print("It works!")
             for name in self.img_ids:
                 img_file = osp.join(self.root, "images/100k/val/{}.jpg".format(name))
                 label_file = osp.join(self.root, "drivable_maps/color_labels/val/{}_drivable_color.png".format(name))
@@ -55,13 +55,14 @@ class BerkeleyDataSet(data.Dataset):
         label = cv2.resize(label, None, fx=f_scale, fy=f_scale, interpolation = cv2.INTER_NEAREST)
         return image, label
     '''
-    
+
     def __getitem__(self, index):
         datafiles = self.files[index]
         image = cv2.imread(datafiles["img"], cv2.IMREAD_COLOR)
         label = cv2.imread(datafiles["label"], cv2.IMREAD_COLOR)
         size = image.shape
-
+        # print(label)
+        # input()
         # Height = axis 0 (y) , Width = axis 1 (x)
         image = cv2.resize(image, None, fx=321/size[1], fy=321/size[0], interpolation = cv2.INTER_LINEAR)
         label = cv2.resize(label, None, fx=321/size[1], fy=321/size[0], interpolation = cv2.INTER_NEAREST)
@@ -72,8 +73,19 @@ class BerkeleyDataSet(data.Dataset):
         image -= self.mean
 
         label = cv2.cvtColor(label, cv2.COLOR_BGR2GRAY)
-        label[label == 29] = 1
-        label[label == 76] = 2
+
+        '''
+        Berkeley Dataset has 4 different labels, 
+        they have differnt shades of red and blue but they mean the same thing. 
+        The following are the label values after converting to grayscale.
+        Red = 29, Blue = 76, Light Red = 123, Light Blue = 165
+        '''
+        
+        label[label == 29] = 1 # Red labels
+        label[label == 123] = 1 # Light Red Labels
+        label[label == 76] = 2 # Blue labels
+        label[label == 165] = 2 # Light Blue Labels
+
 
         '''
         img_h, img_w = label.shape
