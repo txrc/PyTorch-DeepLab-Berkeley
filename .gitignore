@@ -5,3 +5,5 @@ BDD_Deepdrive_Snapshots/
 BDD_Deepdrive.zip
 dataset/MS_DeepLab_resnet_pretrained_COCO_init.pth
 dataset/MS_DeepLab_resnet_pretrained_COCO_init.zip
+viewBerkeleyDataset.py
+*.pth

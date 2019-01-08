@@ -12,6 +12,7 @@ import torch.nn.functional as F
 from torch.utils import data
 from deeplab.model import Res_Deeplab
 from deeplab.datasets import BerkeleyDataSet
+from deeplab.datasets import BerkeleyDataTestSet
 from collections import OrderedDict
 import os
 
@@ -128,14 +129,19 @@ def main():
     model.eval()
     model.cuda(gpu0)
 
-    testloader = data.DataLoader(BerkeleyDataSet(args.data_dir, args.data_list, mean=IMG_MEAN, scale=False, mirror=False, train=False), 
+    valid_loader = data.DataLoader(BerkeleyDataSet(args.data_dir, args.data_list, mean=IMG_MEAN, scale=False, mirror=False, train=False), 
                                     batch_size=1, shuffle=False, pin_memory=True)
+
+    test_loader = data.DataLoader(BerkeleyDataTestSet(args.data_dir, args.data_list, mean=IMG_MEAN))
 
 
     interp = nn.Upsample(size=(321, 321), mode='bilinear', align_corners=True)
     data_list = []
+
+
+    # #Evaluation loop for Valid Loader 
     with torch.no_grad():
-        for index, batch in enumerate(testloader):
+        for index, batch in enumerate(valid_loader):     
             if index % 100 == 0:
                 print('%d processd'%(index))
             image, label, name, size = batch
@@ -151,13 +157,40 @@ def main():
             # print(output)
             # print(label[0].shape)
             ground_truth = np.asarray(label[0].numpy()[:h,:w], dtype=np.int)
-            
 
-            # show_all(ground_truth, output)
+
+            show_all(ground_truth, output)
             data_list.append([ground_truth.flatten(), output.flatten()])
 
         get_iou(data_list, args.num_classes)
 
+
+
+    #Evaluation loop for Test Loader 
+    '''
+    with torch.no_grad():
+        for index, batch in enumerate(test_loader):
+            if index % 100 == 0:
+                print('%d processd'%(index))
+            image, name, size = batch
+            h, w, c = size[0].numpy()
+            # print(name)
+
+            output = model(Variable(image).cuda(gpu0))
+            output = interp(output).cpu().data[0].numpy()
+            # print(output.shape)
+            output = output.transpose(1,2,0)
+            output = np.asarray(np.argmax(output, axis=2), dtype=np.int)
+            # print(output)
+            # print(label[0].shape)
+            # ground_truth = np.asarray(label[0].numpy()[:h,:w], dtype=np.int)
+            
+    
+            # show_all(ground_truth, output)
+            # data_list.append([ground_truth.flatten(), output.flatten()])
+
+        get_iou(data_list, args.num_classes)
+    '''
 
 if __name__ == '__main__':
     main()

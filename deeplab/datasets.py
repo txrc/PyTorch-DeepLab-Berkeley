@@ -29,6 +29,7 @@ class BerkeleyDataSet(data.Dataset):
             self.img_ids = self.img_ids * int(np.ceil(float(max_iters) / len(self.img_ids)))
         self.files = []
 
+        # For Training Images
         if self.train == True:
             for name in self.img_ids:
                 img_file = osp.join(self.root, "images/100k/train/{}.jpg".format(name))
@@ -37,6 +38,8 @@ class BerkeleyDataSet(data.Dataset):
                     "img": img_file, 
                     "label": label_file, 
                     "name": name})
+
+        # For Validation images
         else:
             for name in self.img_ids:
                 img_file = osp.join(self.root, "images/100k/val/{}.jpg".format(name))
@@ -131,11 +134,9 @@ class BerkeleyDataTestSet(data.Dataset):
         self.files = [] 
         # for split in ["train", "trainval", "val"]:
         for name in self.img_ids:
-            img_file = osp.join(self.root, "images/100k/val/{}.jpg".format(name))
-            label_file = osp.join(self.root, "drivable_maps/color_labels/val/{}_drivable_color.png".format(name))
+            img_file = osp.join(self.root, "images/100k/test/{}.jpg".format(name))       
             self.files.append({
                 "img": img_file,
-                "label": label_file,
                 "name": name
             })
 
@@ -146,19 +147,23 @@ class BerkeleyDataTestSet(data.Dataset):
         datafiles = self.files[index]
         image = cv2.imread(datafiles["img"], cv2.IMREAD_COLOR)
         size = image.shape
-        name = osp.splitext(osp.basename(datafiles["img"]))[0]
+
+        image = cv2.resize(image, None, fx=321/size[1], fy=321/size[0], interpolation = cv2.INTER_LINEAR)
+
+        name = datafiles["name"]
         image = np.asarray(image, np.float32)
         image -= self.mean
         
-        img_h, img_w, _ = image.shape
-        pad_h = max(self.crop_h - img_h, 0)
-        pad_w = max(self.crop_w - img_w, 0)
-        if pad_h > 0 or pad_w > 0:
-            image = cv2.copyMakeBorder(image, 0, pad_h, 0, 
-                pad_w, cv2.BORDER_CONSTANT, 
-                value=(0.0, 0.0, 0.0))
+        # img_h, img_w, _ = image.shape
+        # pad_h = max(self.crop_h - img_h, 0)
+        # pad_w = max(self.crop_w - img_w, 0)
+        # if pad_h > 0 or pad_w > 0:
+        #     image = cv2.copyMakeBorder(image, 0, pad_h, 0, 
+        #         pad_w, cv2.BORDER_CONSTANT, 
+        #         value=(0.0, 0.0, 0.0))
+
         image = image.transpose((2, 0, 1))
-        return image, name, size
+        return image, name, np.array(size)
 
 
 
