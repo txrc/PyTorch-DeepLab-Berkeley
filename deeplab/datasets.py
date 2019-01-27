@@ -26,7 +26,7 @@ class BerkeleyDataSet(data.Dataset):
         self.img_ids = [i_id.strip() for i_id in open(list_path)]
         # Limit the batch_size 
         if not max_iters==None:
-            self.img_ids = self.img_ids * int(np.ceil(float(max_iters) / len(self.img_ids)))
+            self.img_ids = self.img_ids * int(np.ceil(float(max_iters) / len(self.img_ids))) # 70000 * 1
         self.files = []
 
         # For Training Images
@@ -51,29 +51,25 @@ class BerkeleyDataSet(data.Dataset):
 
     def __len__(self):
         return len(self.files)
-    '''
-    def generate_scale_label(self, image, label):
-        f_scale = 0.5 + random.randint(0, 11) / 10.0
-        image = cv2.resize(image, None, fx=f_scale, fy=f_scale, interpolation = cv2.INTER_LINEAR)
-        label = cv2.resize(label, None, fx=f_scale, fy=f_scale, interpolation = cv2.INTER_NEAREST)
-        return image, label
-    '''
+
 
     def __getitem__(self, index):
         datafiles = self.files[index]
         image = cv2.imread(datafiles["img"], cv2.IMREAD_COLOR)
         label = cv2.imread(datafiles["label"], cv2.IMREAD_COLOR)
         size = image.shape
-        # print(label)
-        # input()
+
         # Height = axis 0 (y) , Width = axis 1 (x)
         image = cv2.resize(image, None, fx=321/size[1], fy=321/size[0], interpolation = cv2.INTER_LINEAR)
         label = cv2.resize(label, None, fx=321/size[1], fy=321/size[0], interpolation = cv2.INTER_NEAREST)
         name = datafiles["name"]
-        #if self.scale:
-            #image, label = self.generate_scale_label(image, label)
+
         image = np.asarray(image, np.float32)
         image -= self.mean
+
+        # cv2.imshow("image", image)
+        # cv2.waitKey(5000)
+
 
         label = cv2.cvtColor(label, cv2.COLOR_BGR2GRAY)
 
@@ -88,29 +84,6 @@ class BerkeleyDataSet(data.Dataset):
         label[label == 123] = 1 # Light Red Labels
         label[label == 76] = 2 # Blue labels
         label[label == 165] = 2 # Light Blue Labels
-
-
-        '''
-        img_h, img_w = label.shape
-        pad_h = max(self.crop_h - img_h, 0)
-        pad_w = max(self.crop_w - img_w, 0)
-        if pad_h > 0 or pad_w > 0:
-            img_pad = cv2.copyMakeBorder(image, 0, pad_h, 0, 
-                pad_w, cv2.BORDER_CONSTANT, 
-                value=(0.0, 0.0, 0.0))
-            label_pad = cv2.copyMakeBorder(label, 0, pad_h, 0, 
-                pad_w, cv2.BORDER_CONSTANT,
-                value=(self.ignore_label,))
-        else:
-            img_pad, label_pad = image, label
-
-        img_h, img_w = label_pad.shape
-        h_off = random.randint(0, img_h - self.crop_h)
-        w_off = random.randint(0, img_w - self.crop_w)
-        # roi = cv2.Rect(w_off, h_off, self.crop_w, self.crop_h);
-        image = np.asarray(img_pad[h_off : h_off+self.crop_h, w_off : w_off+self.crop_w], np.float32)
-        label = np.asarray(label_pad[h_off : h_off+self.crop_h, w_off : w_off+self.crop_w], np.float32)'''
-        #image = image[:, :, ::-1]  # change to BGR
 
         image = image.transpose((2, 0, 1))
         if self.is_mirror:
@@ -129,10 +102,8 @@ class BerkeleyDataTestSet(data.Dataset):
         self.list_path = list_path
         self.crop_h, self.crop_w = crop_size
         self.mean = mean
-        # self.mean_bgr = np.array([104.00698793, 116.66876762, 122.67891434])
         self.img_ids = [i_id.strip() for i_id in open(list_path)]
         self.files = [] 
-        # for split in ["train", "trainval", "val"]:
         for name in self.img_ids:
             img_file = osp.join(self.root, "images/100k/test/{}.jpg".format(name))       
             self.files.append({
@@ -153,18 +124,42 @@ class BerkeleyDataTestSet(data.Dataset):
         name = datafiles["name"]
         image = np.asarray(image, np.float32)
         image -= self.mean
-        
-        # img_h, img_w, _ = image.shape
-        # pad_h = max(self.crop_h - img_h, 0)
-        # pad_w = max(self.crop_w - img_w, 0)
-        # if pad_h > 0 or pad_w > 0:
-        #     image = cv2.copyMakeBorder(image, 0, pad_h, 0, 
-        #         pad_w, cv2.BORDER_CONSTANT, 
-        #         value=(0.0, 0.0, 0.0))
 
         image = image.transpose((2, 0, 1))
         return image, name, np.array(size)
 
+
+class CityscapesDataSet(data.Dataset):
+    def __init__(self, root, list_path, crop_size=(505, 505), mean=(128, 128, 128)):
+        self.root = root
+        self.list_path = list_path
+        self.crop_h, self.crop_w = crop_size
+        self.mean = mean
+        self.img_ids = [i_id.strip() for i_id in open(list_path)]
+        self.files = [] 
+        for name in self.img_ids:
+            img_file = osp.join(self.root, "{}.png".format(name))       
+            self.files.append({
+                "img": img_file,
+                "name": name
+            })
+
+    def __len__(self):
+        return len(self.files)
+
+    def __getitem__(self, index):
+        datafiles = self.files[index]
+        image = cv2.imread(datafiles["img"], cv2.IMREAD_COLOR)
+        size = image.shape
+
+        image = cv2.resize(image, None, fx=321/size[1], fy=321/size[0], interpolation = cv2.INTER_LINEAR)
+
+        name = datafiles["name"]
+        image = np.asarray(image, np.float32)
+        image -= self.mean
+
+        image = image.transpose((2, 0, 1))
+        return image, name, np.array(size)
 
 
 # if __name__ == '__main__':

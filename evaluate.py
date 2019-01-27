@@ -13,6 +13,7 @@ from torch.utils import data
 from deeplab.model import Res_Deeplab
 from deeplab.datasets import BerkeleyDataSet
 from deeplab.datasets import BerkeleyDataTestSet
+from deeplab.datasets import CityscapesDataSet
 from collections import OrderedDict
 import os
 
@@ -20,8 +21,13 @@ import matplotlib.pyplot as plt
 import torch.nn as nn
 IMG_MEAN = np.array((104.00698793,116.66876762,122.67891434), dtype=np.float32)
 
+
+# DATA_DIRECTORY = './CityScapes/stuttgart_01/'
+# DATA_LIST_PATH = './dataset/list/CityScapesStuttgart_01.txt'
+# DATA_DIRECTORY = './SG_Driving/'
+# DATA_LIST_PATH = './dataset/list/SG_Driving.txt'
 DATA_DIRECTORY = './BDD_Deepdrive/bdd100k/'
-DATA_LIST_PATH = './dataset/list/BDD_val.txt'
+DATA_LIST_PATH = './dataset/list/BDD_test.txt'
 IGNORE_LABEL = 255
 NUM_CLASSES = 3
 RESTORE_FROM = './BDD_20000.pth'
@@ -78,7 +84,25 @@ def get_iou(data_list, class_num, save_path=None):
             f.write(str(j_list)+'\n')
             f.write(str(M)+'\n')
 
-def show_all(ground_truth, pred):
+def overlay(name, original_directory, masked_directory):
+    # Save individual images with respective mask as frames for video
+    # alpha = 0.30 # for singapore and cityscapes
+    alpha = 0.15
+    original_image = cv2.imread(original_directory + name[0] + '.jpg')
+    masked = cv2.imread(masked_directory + name[0] + '_masked.png')
+
+
+    cv2.addWeighted(masked, alpha, original_image, 1 - alpha, 0, original_image)
+
+    cv2.imshow("view", original_image)
+
+
+    cv2.imwrite("./BDD_Overlayed/" + name[0] + "_overlayed.jpg", original_image)
+
+
+
+
+def show_all(pred, ground_truth=None, name=None):
     import matplotlib.pyplot as plt
     from matplotlib import colors
     from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -89,31 +113,22 @@ def show_all(ground_truth, pred):
     classes = np.array(('background',  # always index 0
                'cDrivable', 'altLane'))
 
-    colormap = [(0,0,0), (0.5,0,0), (0,0.5,0)]
+    colormap = [(0.96,0.86,0.7), (0,0,0.5), (0,0.5,0)]
 
-    # classes = np.array(('background',  # always index 0
-    #            'aeroplane', 'bicycle', 'bird', 'boat',
-    #            'bottle', 'bus', 'car', 'cat', 'chair',
-    #                      'cow', 'diningtable', 'dog', 'horse',
-    #                      'motorbike', 'person', 'pottedplant',
-    #                      'sheep', 'sofa', 'train', 'tvmonitor'))
-
-
-    # colormap = [(0,0,0),(0.5,0,0),(0,0.5,0),(0.5,0.5,0),(0,0,0.5),(0.5,0,0.5),(0,0.5,0.5), 
-    #                 (0.5,0.5,0.5),(0.25,0,0),(0.75,0,0),(0.25,0.5,0),(0.75,0.5,0),(0.25,0,0.5), 
-    #                 (0.75,0,0.5),(0.25,0.5,0.5),(0.75,0.5,0.5),(0,0.25,0),(0.5,0.25,0),(0,0.75,0), 
-    #                 (0.5,0.75,0),(0,0.25,0.5)]
 
     cmap = colors.ListedColormap(colormap)
-    bounds = [0,1,2]
+    bounds = [0,1,2,3]
     norm = colors.BoundaryNorm(bounds, cmap.N)
 
-    ax1.set_title('ground_truth')
-    ax1.imshow(ground_truth, cmap=cmap, norm=norm)
+    plt.imsave("./BDDMasked/" + name[0] + "_masked", pred, cmap=cmap)
+    plt.close()
 
-    ax2.set_title('pred')
-    ax2.imshow(pred, cmap=cmap, norm=norm)
-    plt.show(fig)
+    # ax1.set_title('ground_truth')
+    # ax1.imshow(ground_truth, cmap=cmap, norm=norm)
+
+    # ax2.set_title('pred')
+    # ax2.imshow(pred, cmap=cmap, norm=norm)
+    # plt.show(fig)
 
 def main():
     """Create the model and start the evaluation process."""
@@ -129,45 +144,69 @@ def main():
     model.eval()
     model.cuda(gpu0)
 
-    valid_loader = data.DataLoader(BerkeleyDataSet(args.data_dir, args.data_list, mean=IMG_MEAN, scale=False, mirror=False, train=False), 
-                                    batch_size=1, shuffle=False, pin_memory=True)
-
-    test_loader = data.DataLoader(BerkeleyDataTestSet(args.data_dir, args.data_list, mean=IMG_MEAN))
-
-
-    interp = nn.Upsample(size=(321, 321), mode='bilinear', align_corners=True)
+    interp = nn.Upsample(size=(720, 1280), mode='bilinear', align_corners=True)
     data_list = []
 
 
-    # #Evaluation loop for Valid Loader 
-    with torch.no_grad():
-        for index, batch in enumerate(valid_loader):     
-            if index % 100 == 0:
-                print('%d processd'%(index))
-            image, label, name, size = batch
 
-            h, w, c = size[0].numpy()
-            # print(name)
-
-            output = model(Variable(image).cuda(gpu0))
-            output = interp(output).cpu().data[0].numpy()
-            # print(output.shape)
-            output = output.transpose(1,2,0)
-            output = np.asarray(np.argmax(output, axis=2), dtype=np.int)
-            # print(output)
-            # print(label[0].shape)
-            ground_truth = np.asarray(label[0].numpy()[:h,:w], dtype=np.int)
-
-
-            show_all(ground_truth, output)
-            data_list.append([ground_truth.flatten(), output.flatten()])
-
-        get_iou(data_list, args.num_classes)
-
-
-
-    #Evaluation loop for Test Loader 
     '''
+    Use the following Data Directories and List Path for validation (BDD Dataset)
+    DATA_DIRECTORY = './BDD_Deepdrive/bdd100k/'
+    DATA_LIST_PATH = './dataset/list/BDD_val.txt'
+
+    '''
+    # valid_loader = data.DataLoader(BerkeleyDataSet(args.data_dir, args.data_list, mean=IMG_MEAN, scale=False, mirror=False, train=False), 
+                                    # batch_size=1, shuffle=False, pin_memory=True)
+
+    #Evaluation loop for Valid Loader 
+    # with torch.no_grad():
+    #     for index, batch in enumerate(valid_loader):     
+    #         if index % 100 == 0:
+    #             print('%d processd'%(index))
+    #         image, label, name, size = batch
+
+    #         h, w, c = size[0].numpy()
+    #         # print(name)
+
+    #         output = model(Variable(image).cuda(gpu0))
+    #         output = interp(output).cpu().data[0].numpy()
+    #         # print(output.shape)
+    #         output = output.transpose(1,2,0)
+
+
+    #         output = np.asarray(np.argmax(output, axis=2), dtype=np.int)
+
+    #         ground_truth = np.asarray(label[0].numpy()[:h,:w], dtype=np.int)
+
+
+    #         show_all(ground_truth, output, name)
+    #         data_list.append([ground_truth.flatten(), output.flatten()])
+
+        # get_iou(data_list, args.num_classes)
+
+    '''
+
+    Use the following codes on the testset.
+
+
+    Use the following Data Directories and List Path for testing (BerkeleyDataTestSet)
+    DATA_DIRECTORY = './BDD_Deepdrive/bdd100k/'
+    DATA_LIST_PATH = './dataset/list/BDD_test.txt'
+    test_loader = data.DataLoader(BerkeleyDataTestSet(args.data_dir, args.data_list, mean=IMG_MEAN))
+    
+
+    Use the following for Cityscapes Dataset (CityscapesDataSet)
+    DATA_DIRECTORY = './CityScapes/stuttgart_01/'
+    DATA_LIST_PATH = './dataset/list/CityScapesStuttgart_01.txt'
+    test_loader = data.DataLoader(CityscapesDataSet(args.data_dir, args.data_list, mean=IMG_MEAN))
+
+    
+    '''
+
+
+    test_loader = data.DataLoader(BerkeleyDataTestSet(args.data_dir, args.data_list, mean=IMG_MEAN))
+    masked_directory = 'D:/PyTorch-DeepLab-Berkeley/BDDMasked/'
+    # #Evaluation loop for Test Loader 
     with torch.no_grad():
         for index, batch in enumerate(test_loader):
             if index % 100 == 0:
@@ -178,19 +217,14 @@ def main():
 
             output = model(Variable(image).cuda(gpu0))
             output = interp(output).cpu().data[0].numpy()
-            # print(output.shape)
+
             output = output.transpose(1,2,0)
             output = np.asarray(np.argmax(output, axis=2), dtype=np.int)
-            # print(output)
-            # print(label[0].shape)
-            # ground_truth = np.asarray(label[0].numpy()[:h,:w], dtype=np.int)
-            
-    
-            # show_all(ground_truth, output)
-            # data_list.append([ground_truth.flatten(), output.flatten()])
+            # show_all(output, name=name)
+            overlay(name=name, original_directory='./BDD_Deepdrive/bdd100k/images/100k/test/', masked_directory=masked_directory)
 
-        get_iou(data_list, args.num_classes)
-    '''
+
+    
 
 if __name__ == '__main__':
     main()

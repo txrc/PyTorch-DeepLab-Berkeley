@@ -6,4 +6,8 @@ BDD_Deepdrive.zip
 dataset/MS_DeepLab_resnet_pretrained_COCO_init.pth
 dataset/MS_DeepLab_resnet_pretrained_COCO_init.zip
 viewBerkeleyDataset.py
+CityScapes/
+SegmentedImages/
+dataset/list/CityScapesStuttgart_01.txt
+dataset/list/SG_Driving.txt
 *.pth
